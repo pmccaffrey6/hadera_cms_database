@@ -1,0 +1,248 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hadera</title>
+    <meta charset="utf-8" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="shortcut icon" href="favicon.ico" />
+
+    <link rel="stylesheet" href="css/leaflet.css" />
+    <link rel="stylesheet" href="css/custom.css" />
+    <link rel="stylesheet" href="css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="css/jquery-ui.min.css" />
+    <!--<link rel="stylesheet" href="css/jquery-ui.structure.min.css" />
+    <link rel="stylesheet" href="css/jquery-ui.theme.min.css" />-->
+
+    <script src="js/leaflet.js"></script>
+    <script src="js/jquery-2.1.4.min.js"></script>
+    <script src="js/bootstrap.min.js"></script>
+    <script src="js/jquery-ui.min.js"></script>
+    <script src="js/progressbar.min.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?v=3.exp&signed_in=true"></script>
+
+</head>
+<body>
+    <div class="container-fluid" id="map-container">              
+        <form id="cms-search-form" class="col-xs-12">
+            <input id="cms-search-input" type="text" name="address" class="form-control" placeholder="ENTER A HOSPITAL NAME HERE">
+        </form>
+        
+        <div id="map" class="col-sm-7 hidden-xs"></div>
+
+        <div id="right-pane" class="col-sm-5 col-xs-12"> 
+            <!-- this is where the basic search results go -->
+                <div id="basic-stats">       
+                </div>
+
+                <div id="percentile" class="hidden col-xs-12">
+                    <p class="lead text-center" id="percentile_label">Payment Percentile:</p>
+                    <div id="percentile_meter" class="col-xs-8"></div>
+                    <div id="percentile_value" class="col-xs-4">
+                        <p class="col-xs-10 timer text-primary text-center"></p>
+                    </div>
+                </div> 
+
+                <!-- LOGO -->
+                <div class="col-xs-12" id="hadera-logo-container">
+                    <p class="lead text-center" id="welcome-message">Welcome to the Hadera CMS Database.</p>
+                    <img src="img/hadera_diamonds.png" class="img-responsive col-xs-3" id="hadera-logo"/>
+                </div>
+        </div>
+    </div>
+
+    <script>
+        // Always to go the top of the page upon reload
+        $(document).ready(function(){
+            $(this).scrollTop(0);
+        });
+
+        var map = L.map('map').setView([40.0, -95.0], 5);
+        var pointer = L.marker([40.0, -95.0]).addTo(map);
+
+        // generate the map
+        L.tileLayer('https://{s}.tiles.mapbox.com/v3/{id}/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+            attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, ' +
+                '<a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
+                'Imagery © <a href="http://mapbox.com">Mapbox</a>',
+            id: 'examples.map-i875mjb7'
+        }).addTo(map);
+
+        var popup = L.popup();
+
+        // Generate the other functionality
+        var hospital_names = [];
+        var providers = [];
+        var global_stats = {};
+        var hospital_stats = {};
+        var drg_stats = {};
+
+        // Get the requisite JSONS and populate searchtables etc...
+        // populate hospitals and providers arrays
+        $.getJSON('/api/providers', function(data){
+            set_hospitals_and_providers(data);
+        });
+
+        // set up the global stats
+        $.getJSON('/api/metric/global', function(data) {
+            set_stats(data,global_stats);
+        });
+
+        // Initialize the search bar
+        $( "#cms-search-input").autocomplete({
+            source: hospital_names,
+            autofocus: true
+        });
+
+        $('#cms-search-form').submit(function(event){
+            event.preventDefault();
+            var query = $('#cms-search-input').val();
+            var result = $.grep(providers, function(e){ return e.name == query; });
+            if ( result.length == 0 ) {
+                alert('Oops! No results found for that name!');
+            } else {
+                // move map marker to location
+                latitude = parseFloat(result[0].latitude);
+                longitude = parseFloat(result[0].longitude);
+                coordinates = [latitude,longitude];
+                pointer.setLatLng(coordinates).update();
+                map.setView(coordinates, 16);
+
+                // set new hospital stats
+                hospital_id = result[0].id;
+                $.getJSON('/api/metric/'+ hospital_id, function (data) {
+                    set_stats(data,hospital_stats);
+
+                    // update basic stats in view
+                    $('#welcome-message').remove();
+                    $('#basic-stats').empty();
+                    $('#percentile').removeClass('hidden');
+
+                    $('#basic-stats').append("<p class='lead text-center text-capitalize' id='hospital-name'>"+result[0].name+"</p>");
+                    $('#basic-stats').append("<p class='lead text-center'>Average Covered Charges:</p><p class='lead text-center text-primary' id='average_covered_charges'>$"+hospital_stats.avg_covered_charges.toFixed(2)+"</p>");
+                    $('#basic-stats').append("<p class='lead text-center'>Average Total Payments:</p><p class='lead text-center text-primary' id='average_covered_charges'>$"+hospital_stats.avg_total_payments.toFixed(2)+"</p>");
+                    $('#basic-stats').append("<p class='lead text-center'>Average Medicare Payments:</p><p class='lead text-center text-primary' id='average_covered_charges'>$"+hospital_stats.avg_medicare_payments.toFixed(2)+"</p>");
+
+                    // update percentile in view
+
+                    // This is the method to calculate percentiles 
+                    $.getJSON('/api/payments', function (data) {
+                        var value = hospital_stats.avg_medicare_payments;
+                        var same_as = 0;
+                        var lower_than = 0;
+                        data.forEach( function(element,index,array){
+                            if ( element < value ) {
+                                lower_than ++;
+                            } else if ( element == value ) {
+                                same_as ++;
+                            };
+                        });
+                        percentile = ( (lower_than + ( 0.5 * same_as ) ) / 157000).toFixed(2);
+                        
+                        line.animate(percentile, {
+                            from: {color: startColor},
+                            to: {color: endColor}
+                        });
+
+                        jQuery(function($) {
+                            $('.timer').countTo({
+                                from: 0,
+                                to: percentile*100,
+                                speed: 120,
+                                refreshInterval: 1
+                            });
+                        });
+                    });
+                    // END method to calculate percentile: RE-FACTOR THIS
+                });
+            
+            }           
+        });
+
+        // START Progress bar animation
+        var startColor = '#FC5B3F';
+        var endColor = '#6FD57F';
+
+        var line = new ProgressBar.Line('#percentile_meter', {
+            color: startColor,
+            trailColor: '#eee',
+            trailWidth: 1,
+            duration: 500,
+            easing: 'bounce',
+            strokeWidth: 2,
+            step: function(state, line) {
+                line.path.setAttribute('stroke', state.color);
+            }
+        });
+        // END progress bar animation
+        
+        // FUNCTIONS HERE
+        function set_hospitals_and_providers (data) {
+            data.forEach( function(element,index,array){
+                providers.push(element);
+                hospital_names.push(element.name);
+            });
+        };
+
+        function set_stats (data , target) {
+            target.avg_total_discharges = data.value[0];
+            target.avg_covered_charges = data.value[1];
+            target.avg_total_payments = data.value[2];
+            target.avg_medicare_payments = data.value[3];
+        };
+
+        // Counter
+        //
+        (function($) {
+            $.fn.countTo = function(options) {
+            // merge the default plugin settings with the custom options
+            options = $.extend({}, $.fn.countTo.defaults, options || {});
+
+                // how many times to update the value, and how much to increment the value on each update
+                var loops = Math.ceil(options.speed / options.refreshInterval),
+                increment = (options.to - options.from) / loops;
+
+                return $(this).each(function() {
+                    var _this = this,
+                        loopCount = 0,
+                        value = options.from,
+                        interval = setInterval(updateTimer, options.refreshInterval);
+
+                    function updateTimer() {
+                        value += increment;
+                        loopCount++;
+                        $(_this).html(value.toFixed(options.decimals));
+
+                        if (typeof(options.onUpdate) == 'function') {
+                            options.onUpdate.call(_this, value);
+                        }
+
+                        if (loopCount >= loops) {
+                            clearInterval(interval);
+                            value = options.to;
+
+                            if (typeof(options.onComplete) == 'function') {
+                                options.onComplete.call(_this, value);
+                            }
+                        }
+                    }
+                });
+            };
+
+        $.fn.countTo.defaults = {
+            from: 0,  // the number the element should start at
+            to: 100,  // the number the element should end at
+            speed: 1000,  // how long it should take to count between the target numbers
+            refreshInterval: 100,  // how often the element should be updated
+            decimals: 0,  // the number of decimal places to show
+            onUpdate: null,  // callback method for every time the element is updated,
+            onComplete: null,  // callback method for when the element finishes updating
+        };
+    })(jQuery);
+
+    </script>   
+</body>
+</html>

@@ -1,0 +1,68 @@
+
+body, html {
+	height:100%;
+}
+
+#cms-search-input {
+	border-radius:0;
+	height: 50px;
+  	font-size: 16px;
+}
+
+#cms-search-form {
+	padding-left: 0px;
+	padding-right: 0px;
+}
+
+#map-container {
+	padding-left: 0px;
+	padding-right: 0px;
+	height:100%;
+}
+
+#map { 
+	height: 100%; 
+}
+
+#right-pane {
+	height:100%;
+	padding-top: 20px;
+	border-left-width: 1px;
+    border-left-color: #D0D0D0;
+    border-left-style: solid;
+}
+
+#hospital-name {
+	font-size: 25px;
+	border-bottom: 1px;
+  	border-bottom-color: #E0E0E0;
+  	border-bottom-style: dotted;
+}
+
+#percentile_meter svg {
+	margin-top: 40px;
+}
+
+.timer {
+	font-size: 50px;
+}
+
+#percentile {
+	border-top-width:1px;
+	border-top-color:#E0E0E0;
+	border-top-style:dotted;
+	border-bottom-width:1px;
+	border-bottom-color:#E0E0E0;
+	border-bottom-style:dotted;
+	padding-top: 30px;
+	padding-bottom: 15px;   
+}
+
+#percentile_label {
+	margin-bottom: 0px;
+}
+
+#hadera-logo {
+	margin-left: 37%;
+	padding-top:20px;
+}
